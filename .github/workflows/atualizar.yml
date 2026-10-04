@@ -1,0 +1,63 @@
+name: Atualizar escala
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"      # a cada 15 min (o GitHub pode atrasar alguns minutos)
+  workflow_dispatch:             # botão "Run workflow"
+  push:
+    branches: [main]
+    paths: ["site/**", "build.py", ".github/workflows/atualizar.yml"]
+
+concurrency:
+  group: escala
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  publicar:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # a versão publicada é a referência para saber se a escala mudou (nada de dados no git)
+      - name: Baixar a versão publicada
+        id: antes
+        run: |
+          url="https://${GITHUB_REPOSITORY_OWNER}.github.io/${GITHUB_REPOSITORY#*/}/data.json"
+          curl -fsS --max-time 30 "$url" -o site/data.json || rm -f site/data.json
+          echo "hash=$(md5sum site/data.json 2>/dev/null | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+
+      - name: Ler a escala no Notion
+        env:
+          NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+          NOMES_CURTOS: ${{ secrets.NOMES_CURTOS }}
+        run: |
+          [ -n "$NOMES_CURTOS" ] && printf '%s' "$NOMES_CURTOS" > nomes_curtos.json
+          python3 build.py
+          echo "hash=$(md5sum site/data.json | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+        id: depois
+
+      - name: Decidir se publica
+        id: decide
+        run: |
+          if [ "${{ steps.antes.outputs.hash }}" != "${{ steps.depois.outputs.hash }}" ] || [ "${{ github.event_name }}" != "schedule" ]; then
+            echo "publicar=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Sem mudanças na escala: nada a publicar."
+          fi
+
+      - uses: actions/upload-pages-artifact@v3
+        if: steps.decide.outputs.publicar == 'true'
+        with:
+          path: site
+
+      - id: deploy
+        if: steps.decide.outputs.publicar == 'true'
+        uses: actions/deploy-pages@v4

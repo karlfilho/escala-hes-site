@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<meta name="color-scheme" content="light">
+<title>Escala CO · HES</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%233B4252'/%3E%3Crect x='6' y='9' width='20' height='17' rx='3' fill='%23ECEFF4'/%3E%3Crect x='6' y='9' width='20' height='5' rx='2' fill='%235E81AC'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="pagina">
+  <header class="topo">
+    <div>
+      <h1>Escala Centro Obstétrico <span id="mesTitulo"></span></h1>
+      <p class="sub">Ginecologia e Obstetrícia — Hospital Estadual de Sumaré</p>
+    </div>
+    <div class="kpis" id="kpis" aria-live="polite"></div>
+  </header>
+
+  <div class="barra">
+    <div class="nav" role="group" aria-label="Navegar entre meses">
+      <button class="btn icone" id="prev" aria-label="Mês anterior">‹</button>
+      <select id="mesSel" aria-label="Mês"></select>
+      <button class="btn icone" id="next" aria-label="Próximo mês">›</button>
+      <button class="btn" id="hoje">Hoje</button>
+    </div>
+    <label class="campo campo-data">
+      <span class="rot">Ir para o dia</span>
+      <input type="date" id="irDia" aria-label="Ir para um dia específico">
+    </label>
+    <div class="campo campo-busca">
+      <span class="rot">Plantonista</span>
+      <input type="search" id="busca" placeholder="Buscar plantonista…  ( / )" autocomplete="off" spellcheck="false"
+             role="combobox" aria-expanded="false" aria-controls="sugestoes" aria-autocomplete="list">
+      <ul id="sugestoes" role="listbox" hidden></ul>
+    </div>
+  </div>
+
+  <div class="foco" id="foco" hidden></div>
+
+  <div class="legenda" id="legenda">
+    <i><span class="sw clt"></span>CLT</i>
+    <i><span class="sw cred"></span>Credenciamento</i>
+    <i><span class="sw emp"></span>Empresa</i>
+    <i><span class="sw vaga"></span>Vaga em aberto</i>
+    <i><span class="sw reserv"></span>Reservado</i>
+    <i><span class="sw ferd"></span>Feriado nacional</i>
+    <span class="dir">M · Manhã (07–13h) &nbsp;·&nbsp; T · Tarde (13–19h) &nbsp;·&nbsp; N · Noite (19–07h)</span>
+  </div>
+
+  <main>
+    <div class="cab-semana" aria-hidden="true">
+      <span class="f">DOM</span><span>SEG</span><span>TER</span><span>QUA</span><span>QUI</span><span>SEX</span><span class="f">SÁB</span>
+    </div>
+    <div class="grade" id="grade" aria-live="polite"></div>
+  </main>
+
+  <section class="vagas" id="vagas" aria-labelledby="vagasTit">
+    <div class="vagas-topo">
+      <div>
+        <h2 id="vagasTit">Vagas em aberto</h2>
+        <p class="sub" id="vagasSub"></p>
+      </div>
+      <div class="vagas-acoes">
+        <div class="seg" id="filtroPer" role="group" aria-label="Filtrar por período">
+          <button data-p="M" aria-pressed="false">Manhã</button>
+          <button data-p="T" aria-pressed="false">Tarde</button>
+          <button data-p="N" aria-pressed="false">Noite</button>
+        </div>
+        <button class="btn" id="copiar">Copiar para WhatsApp</button>
+      </div>
+    </div>
+    <div class="lista" id="listaVagas"></div>
+  </section>
+
+  <footer class="rodape">
+    <span>Somente Centro Obstétrico — ambulatório, enfermaria e centro cirúrgico não constam nesta escala.</span>
+    <span id="atualizado"></span>
+  </footer>
+</div>
+<div class="aviso" id="aviso" role="status" hidden></div>
+<script src="app.js"></script>
+</body>
+</html>

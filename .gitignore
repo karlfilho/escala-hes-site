@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+.DS_Store
+# gerados/privados: nunca no repositório
+site/data.json
+nomes_curtos.json
