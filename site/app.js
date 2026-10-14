@@ -104,7 +104,7 @@ function htmlDia(m, d, i, hoje) {
   const cls = ["dia", wd === 0 || wd === 6 ? "fds" : "", fer ? "feriado" : "", data < hoje ? "passado" : "", data === hoje ? "eh-hoje" : ""];
   let h = `<article class="${cls.filter(Boolean).join(" ")}" data-iso="${data}" style="--i:${i}">` +
     `<header class="cab"><span class="num">${d}</span><span class="wd">${WD[wd]}</span>` +
-    (fer ? `<span class="fer-rot" title="Feriado nacional">Feriado · ${esc(fer)}</span>` : "") +
+    (fer ? `<span class="fer-rot" title="Feriado (nacional ou HES)">Feriado · ${esc(fer)}</span>` : "") +
     (data === hoje ? `<span class="hoje-tag">hoje</span>` : "") + `</header>`;
   for (const [s] of SIGLAS) {
     const lista = m.dias[String(d)][s];

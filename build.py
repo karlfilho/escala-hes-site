@@ -43,7 +43,9 @@ FERIADOS_FIXOS = {(1, 1): "Confraternização Universal", (4, 21): "Tiradentes",
                   (5, 1): "Dia do Trabalho", (9, 7): "Independência",
                   (10, 12): "N. Sra. Aparecida", (11, 2): "Finados",
                   (11, 15): "Proclamação da República", (11, 20): "Consciência Negra",
-                  (12, 25): "Natal"}
+                  (12, 25): "Natal",
+                  # feriados só do HES (definidos pela coordenação em 14/10/2026)
+                  (12, 24): "Véspera de Natal", (12, 31): "Réveillon"}
 
 
 def pascoa(ano):
