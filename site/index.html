@@ -13,11 +13,16 @@
 <div class="pagina">
   <header class="topo">
     <div>
-      <h1>Escala Centro Obstétrico <span id="mesTitulo"></span></h1>
+      <h1>Escala <span id="setorTitulo">Centro Obstétrico</span> <span class="mes" id="mesTitulo"></span></h1>
       <p class="sub">Ginecologia e Obstetrícia — Hospital Estadual de Sumaré</p>
     </div>
     <div class="kpis" id="kpis" aria-live="polite"></div>
   </header>
+
+  <div class="abas" id="abas" role="tablist" aria-label="Escala" hidden>
+    <button role="tab" data-s="co" aria-selected="true">Centro Obstétrico</button>
+    <button role="tab" data-s="amb" aria-selected="false">Ambulatórios</button>
+  </div>
 
   <div class="barra">
     <div class="nav" role="group" aria-label="Navegar entre meses">
@@ -46,8 +51,11 @@
     <i><span class="sw emp"></span>Empresa</i>
     <i><span class="sw vaga"></span>Vaga em aberto</i>
     <i><span class="sw reserv"></span>Reservado</i>
+    <i class="so-amb"><span class="sw resid"></span>Residentes</i>
     <i><span class="sw ferd"></span>Feriado (nacional ou HES)</i>
-    <span class="dir">M · Manhã (07–13h) &nbsp;·&nbsp; T · Tarde (13–19h) &nbsp;·&nbsp; N · Noite (19–07h)</span>
+    <i class="so-amb"><b class="tp pn">PN</b>Pré-natal</i>
+    <i class="so-amb"><b class="tp cg">CG</b>Cir. Gineco</i>
+    <span class="dir">M · Manhã (07–13h) &nbsp;·&nbsp; T · Tarde (13–19h)<span class="so-co"> &nbsp;·&nbsp; N · Noite (19–07h)</span></span>
   </div>
 
   <main>
@@ -76,7 +84,7 @@
   </section>
 
   <footer class="rodape">
-    <span>Somente Centro Obstétrico — ambulatório, enfermaria e centro cirúrgico não constam nesta escala.</span>
+    <span id="rodapeTxt">Somente Centro Obstétrico — ambulatório, enfermaria e centro cirúrgico não constam nesta escala.</span>
     <span id="atualizado"></span>
   </footer>
 </div>

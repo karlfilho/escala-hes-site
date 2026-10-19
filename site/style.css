@@ -3,7 +3,7 @@
   --nord4: #D8DEE9; --nord5: #E5E9F0; --nord6: #ECEFF4;
   --azul: #5E81AC; --verde: #6E8C55; --roxo: #97709B; --vermelho: #BF616A; --laranja: #D08770;
   --clt-bg: #DCE7F2; --cred-bg: #E1EBD7; --emp-bg: #E4DAEC;
-  --vaga-bg: #F7E7E9; --vaga-fg: #A34A52; --reserv-bg: #D8DEE9;
+  --vaga-bg: #F7E7E9; --vaga-fg: #A34A52; --reserv-bg: #D8DEE9; --resid-bg: #DDEEF1; --ciano: #4C8A99;
   --fundo: #F3F5F9; --papel: #fff;
   --ease: cubic-bezier(.2, .8, .2, 1);
   --raio: 8px;
@@ -22,12 +22,25 @@ button, input, select { font: inherit; color: inherit; }
 .topo { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; flex-wrap: wrap;
         padding-bottom: 14px; border-bottom: 2px solid var(--nord0); }
 h1 { font-size: clamp(20px, 2.4vw, 28px); font-weight: 650; letter-spacing: -.02em; }
-h1 span { color: var(--azul); font-weight: 500; transition: opacity .2s; }
+h1 .mes { color: var(--azul); font-weight: 500; transition: opacity .2s; }
 .sub { font-size: 12.5px; color: var(--nord3); margin-top: 4px; }
 .kpis { display: flex; gap: clamp(16px, 2.4vw, 34px); text-align: right; }
 .kpi .v { font-size: clamp(20px, 2.2vw, 28px); font-weight: 650; line-height: 1; font-variant-numeric: tabular-nums; }
 .kpi .l { font-size: 10.5px; color: var(--nord3); text-transform: uppercase; letter-spacing: .06em; margin-top: 5px; }
 .kpi.alerta .v { color: var(--vermelho); }
+
+/* ── abas: CO e ambulatórios nunca no mesmo calendário ── */
+.abas { display: flex; gap: 4px; margin-top: 14px; border-bottom: 1px solid var(--nord4); }
+.abas[hidden] { display: none; }
+.abas button { position: relative; height: 40px; padding: 0 16px; border: 0; background: transparent; cursor: pointer;
+  font-weight: 600; color: var(--nord3); border-radius: var(--raio) var(--raio) 0 0; transition: color .15s, background .15s; }
+.abas button:hover { color: var(--nord0); background: var(--nord6); }
+.abas button[aria-selected=true] { color: var(--nord0); }
+.abas button[aria-selected=true]::after { content: ""; position: absolute; left: 10px; right: 10px; bottom: -1px; height: 3px;
+  border-radius: 3px 3px 0 0; background: var(--azul); }
+body.setor-amb .abas button[aria-selected=true]::after { background: var(--ciano); }
+body.setor-amb h1 #setorTitulo { color: var(--nord0); }
+body:not(.setor-amb) .so-amb, body.setor-amb .so-co { display: none !important; }
 
 /* ── barra de controles ── */
 .barra { display: flex; flex-wrap: wrap; gap: 12px 16px; align-items: flex-end; margin: 16px 0 10px; }
@@ -81,6 +94,13 @@ input:focus { border-color: var(--azul); box-shadow: 0 0 0 3px rgba(94, 129, 172
 .sw.vaga { background: var(--vaga-bg); border-left-color: var(--vermelho); }
 .sw.reserv { background: var(--reserv-bg); border-left-color: #7B869B; }
 .sw.ferd { background: #F6E3D8; border: 1.5px solid var(--laranja); }
+.sw.resid { background: var(--resid-bg); border-left-color: var(--ciano); }
+
+/* sigla do tipo de ambulatório, antes do nome */
+.tp { display: inline-block; font-size: 9.5px; font-weight: 700; letter-spacing: .04em; line-height: 1; padding: 2px 4px;
+  border-radius: 3px; margin-right: 5px; vertical-align: 1px; background: var(--nord5); color: var(--nord3); font-style: normal; }
+.tp.pn { background: #F3E3BC; color: #8A6A1F; }
+.tp.cg { background: #CFE6EC; color: #2F6876; }
 
 /* ── calendário ── */
 .cab-semana, .grade { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 7px; }
@@ -121,10 +141,14 @@ input:focus { border-color: var(--azul); box-shadow: 0 0 0 3px rgba(94, 129, 172
 .n.cred { background: var(--cred-bg); border-left-color: var(--verde); }
 .n.emp { background: var(--emp-bg); border-left-color: var(--roxo); }
 .n.vaga { background: var(--vaga-bg); color: var(--vaga-fg); font-style: italic; font-size: 11.5px; border-left-color: var(--vermelho); }
+.n.resid { background: var(--resid-bg); border-left-color: var(--ciano); }
 .n.reserv { background: var(--reserv-bg); color: var(--nord3); font-style: italic; font-size: 11.5px; border-left-color: #7B869B; }
 .dia.passado .n.vaga { background: var(--nord6); color: #8791a5; border-left-color: var(--nord4); }
 .dia.passado:not(.sel) { background: #FAFBFD; }
 .dia.passado:not(.sel) .num { color: #7b869b; }
+.dia.fechado { background: #FAFBFD; border-style: dashed; }
+.dia.fechado .cab { background: transparent; }
+.dia .sem { flex: 1; display: grid; place-items: center; padding: 10px; font-size: 11.5px; font-style: italic; color: #9aa3b5; }
 
 /* ── foco: dias em destaque, resto cinza ── */
 body.com-foco .dia:not(.sel), body.com-foco .vazio { opacity: .4; filter: grayscale(1); }
@@ -176,7 +200,7 @@ h2 { font-size: 20px; font-weight: 650; letter-spacing: -.01em; }
 
 /* ── telas estreitas: o mês vira uma lista de dias ── */
 @media (max-width: 860px) {
-  .cab-semana, .vazio { display: none; }
+  .cab-semana, .vazio, .dia.fechado { display: none; }
   .grade { grid-template-columns: 1fr; gap: 9px; }
   .dia.sel { transform: translateY(-3px) scale(1.012); }
   .kpis { width: 100%; display: grid; grid-template-columns: repeat(auto-fit, minmax(84px, 1fr)); gap: 14px 10px; text-align: left; }
