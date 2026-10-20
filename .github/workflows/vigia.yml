@@ -1,0 +1,53 @@
+name: Vigiar escala
+
+# O cron do GitHub só dispara de fato a cada 2–5 h. Por isso cada execução fica viva ~5h30,
+# lendo o Notion a cada 3 min, e dispara "Atualizar escala" quando a escala muda
+# (edições feitas fora do computador, como pelo Claude no celular, não chamam o gh workflow run).
+# Enquanto uma roda, o próximo disparo do cron fica na fila e assume quando ela termina.
+
+on:
+  schedule:
+    - cron: "*/30 * * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: vigia
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  actions: write
+
+jobs:
+  vigiar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 345
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Vigiar o Notion
+        env:
+          NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+          NOMES_CURTOS: ${{ secrets.NOMES_CURTOS }}
+          GH_TOKEN: ${{ github.token }}
+          DURACAO: 19800   # 5h30, folga antes do limite de 6 h do GitHub
+          INTERVALO: 180
+        run: |
+          [ -n "$NOMES_CURTOS" ] && printf '%s' "$NOMES_CURTOS" > nomes_curtos.json
+          url="https://${GITHUB_REPOSITORY_OWNER}.github.io/${GITHUB_REPOSITORY#*/}/data.json"
+          curl -fsS --max-time 30 "$url" -o site/data.json || rm -f site/data.json
+          fim=$(( $(date +%s) + DURACAO ))
+          while [ "$(date +%s)" -lt "$fim" ]; do
+            antes=$(md5sum site/data.json 2>/dev/null | cut -d' ' -f1)
+            # build.py só regrava site/data.json se a escala mudou; erro aqui não derruba a vigia
+            if python3 build.py; then
+              depois=$(md5sum site/data.json | cut -d' ' -f1)
+              if [ "$antes" != "$depois" ]; then
+                echo "$(date -u +%H:%M) escala mudou: disparando a publicação"
+                gh workflow run atualizar.yml --ref "$GITHUB_REF_NAME" || echo "::warning::falha ao disparar a publicação"
+              fi
+            else
+              echo "::warning::build.py falhou às $(date -u +%H:%M); tento de novo na próxima volta"
+            fi
+            sleep "$INTERVALO"
+          done
