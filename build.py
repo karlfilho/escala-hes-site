@@ -29,6 +29,8 @@ from pathlib import Path
 RAIZ = Path(__file__).resolve().parent
 SAIDA = RAIZ / "site" / "data.json"
 NOMES_CURTOS = RAIZ / "nomes_curtos.json"
+# primeiro mês publicado; antes era "mês anterior" e os meses velhos sumiam na virada
+PRIMEIRO_MES = dt.date(2026, 9, 1)
 
 DS_ESCALA = "3b296f0a-3487-80f4-85fb-000bba7de545"
 DS_PLANTONISTAS = "3b296f0a-3487-80c4-9f65-000b2b511e9d"
@@ -135,8 +137,7 @@ def ler_notion(token):
         tipo = (p["properties"]["Tipo"].get("select") or {}).get("name")
         pessoas[p["id"].replace("-", "")] = (nome, tipo)
 
-    hoje = dt.date.today()
-    desde = (hoje.replace(day=1) - dt.timedelta(days=1)).replace(day=1)   # mês anterior
+    desde = PRIMEIRO_MES   # janela fixa: meses passados continuam no site
     setores = [{"property": "Name", "title": {"equals": n}} for n in ["CO", *AMB_TIPOS]]
     filtro = {"and": [{"or": setores},
                       {"property": "Date", "date": {"on_or_after": desde.isoformat()}}]}
