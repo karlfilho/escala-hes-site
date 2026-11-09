@@ -1,6 +1,7 @@
 "use strict";
 /* Escala CO/HES — site estático. Lê data.json (gerado por build.py) e desenha o mesmo calendário do PDF, interativo.
-   Duas abas que nunca se misturam: Centro Obstétrico (data.meses) e Ambulatórios (data.amb.meses). */
+   Três abas que nunca se misturam: Centro Obstétrico (data.meses), Ambulatórios (data.amb.meses)
+   e Centro Cirúrgico (data.cc.meses, horários cirúrgicos da Ginecologia). */
 
 const BRT = "America/Sao_Paulo";
 const WD = ["DOM", "SEG", "TER", "QUA", "QUI", "SEX", "SÁB"];
@@ -16,8 +17,13 @@ const SETORES = {
         rodape: "Somente Centro Obstétrico — ambulatório, enfermaria e centro cirúrgico não constam nesta escala." },
   amb: { titulo: "Ambulatórios", aba: "Ambulatórios", siglas: [["M", "Manhã"], ["T", "Tarde"]],
          unid: ["turno", "turnos"],
+         vazio: "sem ambulatório",
          rodape: "Somente ambulatórios (Pré-natal e Cir. Gineco), de segunda a sexta — o Centro Obstétrico fica na outra aba." },
+  cc: { titulo: "Centro Cirúrgico", aba: "Centro Cirúrgico", siglas: [["M", "Manhã"], ["T", "Tarde"]],
+        unid: ["turno", "turnos"], vazio: "sem cirurgia",
+        rodape: "Somente horários cirúrgicos da Ginecologia (terça, quarta e sexta de manhã; quinta à tarde) — CO e ambulatórios ficam nas outras abas." },
 };
+const EXTRAS = ["amb", "cc"];   // abas com posições [tipo, nome], só Manhã e Tarde
 const REFRESH_MS = 5 * 60 * 1000;
 
 const $ = (id) => document.getElementById(id);
@@ -40,14 +46,15 @@ const fmtDataHora = (isoUtc) => new Intl.DateTimeFormat("pt-BR", { timeZone: BRT
 const reduzido = matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 /* ── setor ativo: tudo abaixo lê os meses e as posições por aqui ── */
-const temAmb = () => !!state.data?.amb?.meses?.length;
+const temSetor = (s) => s === "co" || (EXTRAS.includes(s) && !!state.data?.[s]?.meses?.length);
 const V = () => SETORES[state.setor];
 const ehAmb = () => state.setor === "amb";
-const meses = () => (ehAmb() ? state.data.amb.meses : state.data.meses);
+const comTipo = () => state.setor !== "co";
+const meses = () => (comTipo() ? state.data[state.setor].meses : state.data.meses);
 const mesAtual = () => meses().find((m) => m.id === state.mesId);
 const mesDeISO = (d) => meses().find((m) => m.id === d.slice(0, 7));
-// no CO cada posição é o nome; no ambulatório é [tipo, nome]
-const nm = (x) => (ehAmb() ? x[1] : x);
+// no CO cada posição é o nome; no ambulatório e no centro cirúrgico é [tipo, nome]
+const nm = (x) => (comTipo() ? x[1] : x);
 const tp = (x) => (ehAmb() ? x[0] : null);
 const ehPessoa = (n) => n && n !== RESERVADO && n !== RESIDENTES;
 const aparece = (m, nome) => Object.values(m.dias).some((p) => Object.values(p).some((l) => l.some((x) => nm(x) === nome)));
@@ -57,14 +64,15 @@ function avisar(msg) {
   clearTimeout(avisar.t); avisar.t = setTimeout(() => (el.aviso.hidden = true), 3500);
 }
 
-/* ── hash: links diretos (#s=amb&m=2026-10&d=2026-10-24 | #p=Nome) ── */
+/* ── hash: links diretos (#s=amb|cc&m=2026-10&d=2026-10-24 | #p=Nome) ── */
+const setorDoHash = (s) => (EXTRAS.includes(s) && temSetor(s) ? s : "co");
 function lerHash() {
   const p = new URLSearchParams(location.hash.slice(1));
   return { s: p.get("s"), m: p.get("m"), d: p.get("d"), p: p.get("p") };
 }
 function gravarHash() {
   const p = new URLSearchParams();
-  if (ehAmb()) p.set("s", "amb");
+  if (comTipo()) p.set("s", state.setor);
   p.set("m", state.mesId);
   if (state.foco?.tipo === "dia") p.set("d", state.foco.iso);
   if (state.foco?.tipo === "pessoa") p.set("p", state.foco.nome);
@@ -140,14 +148,14 @@ function porTipo(lista, alvo) {
 function htmlDia(m, d, i, hoje) {
   const data = iso(m.ano, m.mes, d), wd = wdDe(m.ano, m.mes, d), fer = m.feriados[String(d)];
   const pers = m.dias[String(d)];
-  const fechado = ehAmb() && V().siglas.every(([s]) => !pers[s].length);
+  const fechado = comTipo() && V().siglas.every(([s]) => !pers[s].length);
   const cls = ["dia", wd === 0 || wd === 6 ? "fds" : "", fer ? "feriado" : "", data < hoje ? "passado" : "",
     data === hoje ? "eh-hoje" : "", fechado ? "fechado" : ""];
   let h = `<article class="${cls.filter(Boolean).join(" ")}" data-iso="${data}" style="--i:${i}">` +
     `<header class="cab"><span class="num">${d}</span><span class="wd">${WD[wd]}</span>` +
     (fer ? `<span class="fer-rot" title="Feriado (nacional ou HES)">Feriado · ${esc(fer)}</span>` : "") +
     (data === hoje ? `<span class="hoje-tag">hoje</span>` : "") + `</header>`;
-  if (fechado) return h + `<div class="sem">sem ambulatório</div></article>`;
+  if (fechado) return h + `<div class="sem">${V().vazio}</div></article>`;
   for (const [s] of V().siglas) {
     const lista = pers[s];
     h += `<div class="per p${s}"><span class="sig">${s}</span><div class="nomes">`;
@@ -171,12 +179,16 @@ function htmlDia(m, d, i, hoje) {
 function renderCabecalho() {
   const m = mesAtual();
   document.body.classList.toggle("setor-amb", ehAmb());
+  document.body.classList.toggle("setor-cc", state.setor === "cc");
   el.setorTitulo.textContent = V().titulo;
   el.mesTitulo.textContent = `· ${MESES[m.mes - 1]} ${m.ano}`;
   document.title = `${V().aba} · ${MESES[m.mes - 1]} ${m.ano}`;
   $("rodapeTxt").textContent = V().rodape;
-  el.abas.hidden = !temAmb();
-  el.abas.querySelectorAll("[data-s]").forEach((b) => b.setAttribute("aria-selected", b.dataset.s === state.setor));
+  el.abas.hidden = !EXTRAS.some(temSetor);
+  el.abas.querySelectorAll("[data-s]").forEach((b) => {
+    b.hidden = !temSetor(b.dataset.s);
+    b.setAttribute("aria-selected", b.dataset.s === state.setor);
+  });
   $("filtroPer").querySelectorAll("button").forEach((b) => (b.hidden = !V().siglas.some(([s]) => s === b.dataset.p)));
 }
 
@@ -254,8 +266,8 @@ function renderFoco() {
   if (f.tipo === "dia") {
     const [a, mm, dd] = f.iso.split("-").map(Number), m = mesAtual(), pers = m?.dias[String(dd)];
     const wd = WD_LONGO[wdDe(a, mm, dd)];
-    const fechado = ehAmb() && pers && V().siglas.every(([s]) => !pers[s].length);
-    const resumo = !pers ? "" : fechado ? "Sem ambulatório neste dia." : V().siglas.map(([s, nome]) => {
+    const fechado = comTipo() && pers && V().siglas.every(([s]) => !pers[s].length);
+    const resumo = !pers ? "" : fechado ? `${V().vazio[0].toUpperCase() + V().vazio.slice(1)} neste dia.` : V().siglas.map(([s, nome]) => {
       const n = pers[s].map(nm); const v = n.filter((x) => x === null).length;
       return `${nome}: ${plural(n.filter((x) => x && x !== RESERVADO).length, "escalado", "escalados")}${v ? `, <b style="color:var(--vaga-fg)">${plural(v, "vaga", "vagas")}</b>` : ""}`;
     }).join(" · ");
@@ -299,7 +311,7 @@ function irParaMes(id, manterFoco = false) {
 
 /* ── troca de aba: mesmo mês e mesmo foco quando fizer sentido ── */
 function trocarSetor(s) {
-  if (s === state.setor || !SETORES[s] || (s === "amb" && !temAmb())) return;
+  if (s === state.setor || !SETORES[s] || !temSetor(s)) return;
   state.setor = s;
   if (!mesAtual()) state.mesId = (mesDeISO(hojeISO()) || meses()[0]).id;
   if (state.foco?.tipo === "pessoa" && !meses().some((m) => aparece(m, state.foco.nome))) { state.foco = null; el.busca.value = ""; }
@@ -363,7 +375,7 @@ document.addEventListener("keydown", (e) => {
 el.abas.addEventListener("click", (e) => { const b = e.target.closest("[data-s]"); if (b) trocarSetor(b.dataset.s); });
 el.abas.addEventListener("keydown", (e) => {
   if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
-  const bs = [...el.abas.querySelectorAll("[data-s]")], i = bs.findIndex((b) => b.dataset.s === state.setor);
+  const bs = [...el.abas.querySelectorAll("[data-s]:not([hidden])")], i = bs.findIndex((b) => b.dataset.s === state.setor);
   const alvo = bs[(i + (e.key === "ArrowRight" ? 1 : -1) + bs.length) % bs.length];
   trocarSetor(alvo.dataset.s); alvo.focus();
 });
@@ -404,7 +416,7 @@ $("copiar").addEventListener("click", async () => {
     const per = V().siglas.filter(([s]) => x.contagem[s]).map(([s, nome]) => `${nome} (${ehAmb() ? tiposTxt(x.tipos[s]) : x.contagem[s]})`).join(", ");
     t += `• ${WD[x.wd][0] + WD[x.wd].slice(1).toLowerCase()} ${pad(x.dia)}/${pad(x.m.mes)}: ${per}${x.fer ? " — feriado" : ""}\n`;
   }
-  t += `\n${location.origin}${location.pathname}${ehAmb() ? "#s=amb" : ""}`;
+  t += `\n${location.origin}${location.pathname}${comTipo() ? "#s=" + state.setor : ""}`;
   try { await navigator.clipboard.writeText(t); avisar("Lista copiada. É só colar no WhatsApp."); }
   catch { const ta = document.createElement("textarea"); ta.value = t; document.body.append(ta); ta.select(); document.execCommand("copy"); ta.remove(); avisar("Lista copiada."); }
 });
@@ -417,8 +429,8 @@ async function carregar(primeira) {
   if (!primeira && state.data && d.alterado_em === state.data.alterado_em) return;
   const mudou = !primeira;
   state.data = d;
-  if (ehAmb() && !temAmb()) state.setor = "co";
-  // os dois setores têm os mesmos meses (build.py monta o ambulatório nos meses do CO)
+  if (!temSetor(state.setor)) state.setor = "co";
+  // os três setores têm os mesmos meses (build.py monta ambulatório e centro cirúrgico nos meses do CO)
   el.mesSel.innerHTML = d.meses.map((m) => `<option value="${m.id}">${MESES[m.mes - 1]} ${m.ano}</option>`).join("");
   $("atualizado").textContent = `Última alteração na escala: ${fmtDataHora(d.alterado_em)} · atualização automática`;
   if (primeira) return;
@@ -430,7 +442,7 @@ async function carregar(primeira) {
 
 function aplicarHash() {
   const h = lerHash();
-  const s = h.s === "amb" && temAmb() ? "amb" : "co";
+  const s = setorDoHash(h.s);
   if (s !== state.setor) trocarSetor(s);
   if (h.m && meses().some((m) => m.id === h.m) && h.m !== state.mesId) { state.mesId = h.m; renderMes(); }
   if (h.d && mesDeISO(h.d)) definirFoco({ tipo: "dia", iso: h.d });
@@ -442,7 +454,7 @@ async function iniciar() {
   try { await carregar(true); }
   catch (e) { el.grade.innerHTML = `<div class="vazio-msg" style="grid-column:1/-1">Não consegui carregar a escala. Tente recarregar a página.</div>`; console.error(e); return; }
   const h = lerHash(), hoje = hojeISO();
-  state.setor = h.s === "amb" && temAmb() ? "amb" : "co";
+  state.setor = setorDoHash(h.s);
   state.mesId = (h.m && meses().some((m) => m.id === h.m) && h.m)
     || (mesDeISO(hoje)?.id) || meses().find((m) => iso(m.ano, m.mes, 28) >= hoje)?.id || meses().at(-1).id;
   renderMes(); renderVagas();

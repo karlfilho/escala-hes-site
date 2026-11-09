@@ -7,7 +7,8 @@ Gera site/data.json (a escala do CO/HES e os ambulatórios, em formato leve) a p
     python3 build.py --local ~/Documents/HES/Escalas/_dados   # teste com os JSONs do PDF
 
 Entram as linhas do CO (Name = 'CO') e, à parte, as dos ambulatórios (Pré-natal,
-Cir. Gineco, Cir. Gineco - Residentes e o antigo Ambulatório), que nunca se misturam.
+Cir. Gineco, Cir. Gineco - Residentes e o antigo Ambulatório) e as do Centro Cirúrgico
+(horários cirúrgicos da Ginecologia), que nunca se misturam.
 Dos plantonistas só saem Nome e Tipo (vínculo):
 CRM, DN, aniversário, férias etc. nunca são lidos para o arquivo de saída.
 
@@ -43,6 +44,8 @@ RESIDENTES = "RESIDENTES"
 # setor do ambulatório no Notion → sigla no site; "Residentes" não tem plantonista vinculado
 AMB_TIPOS = {"Pré-natal": "PN", "Cir. Gineco": "CG", "Cir. Gineco - Residentes": "CG", "Ambulatório": "AMB"}
 AMB_PERIODOS = "MT"
+# horários cirúrgicos: mesmo formato do ambulatório ([tipo, nome]), aba própria no site
+CC_SETORES = {"Centro Cirúrgico": "CC"}
 PARTICULAS = {"de", "da", "do", "dos", "das", "e", "del"}
 
 # Feriados nacionais (Lei 662/1949, 6.802/1980, 14.759/2023). Carnaval e Corpus
@@ -128,9 +131,10 @@ def texto(prop):
 
 
 def ler_notion(token):
-    """→ (meses, amb, vinculos).
+    """→ (meses, amb, cc, vinculos).
     meses[(ano, mes)][dia][sigla] = [nome | None | RESERVADO, ...]
-    amb[(ano, mes)][dia][sigla] = [[tipo, nome | None | RESERVADO | RESIDENTES], ...]"""
+    amb[(ano, mes)][dia][sigla] = [[tipo, nome | None | RESERVADO | RESIDENTES], ...]
+    cc: igual ao amb, com tipo CC"""
     pessoas = {}
     for p in notion_query(token, DS_PLANTONISTAS, {}):
         nome = texto(p["properties"]["Name"])
@@ -138,12 +142,12 @@ def ler_notion(token):
         pessoas[p["id"].replace("-", "")] = (nome, tipo)
 
     desde = PRIMEIRO_MES   # janela fixa: meses passados continuam no site
-    setores = [{"property": "Name", "title": {"equals": n}} for n in ["CO", *AMB_TIPOS]]
+    setores = [{"property": "Name", "title": {"equals": n}} for n in ["CO", *AMB_TIPOS, *CC_SETORES]]
     filtro = {"and": [{"or": setores},
                       {"property": "Date", "date": {"on_or_after": desde.isoformat()}}]}
     linhas = notion_query(token, DS_ESCALA, {"filter": filtro})
 
-    meses, amb, vinculos = {}, {}, {}
+    meses, amb, cc, vinculos = {}, {}, {}, {}
     for l in linhas:
         pr = l["properties"]
         data = (pr["Date"].get("date") or {}).get("start")
@@ -171,9 +175,11 @@ def ler_notion(token):
             nome = None
         if setor == "CO":
             meses.setdefault((ano, mes), {}).setdefault(dia, {}).setdefault(sigla, []).append(nome)
+        elif setor in CC_SETORES:
+            cc.setdefault((ano, mes), {}).setdefault(dia, {}).setdefault(sigla, []).append([CC_SETORES[setor], nome])
         else:
             amb.setdefault((ano, mes), {}).setdefault(dia, {}).setdefault(sigla, []).append([AMB_TIPOS[setor], nome])
-    return meses, amb, vinculos
+    return meses, amb, cc, vinculos
 
 
 def ler_local(pasta):
@@ -184,7 +190,7 @@ def ler_local(pasta):
         meses[(d["ano"], d["mes"])] = {int(k): v for k, v in d["escala"].items()}
         for n, (v, _) in d["conferencia"]["plantonistas"].items():
             vinculos[n] = v
-    return meses, {}, vinculos
+    return meses, {}, {}, vinculos
 
 
 # ── montagem ─────────────────────────────────────────────────────────────────
@@ -199,17 +205,18 @@ def ordenar_amb(lista):
     return sorted(lista, key=lambda x: (rank(x[1]), x[0], x[1] or ""))
 
 
-def montar(meses, amb, vinculos):
+def montar(meses, amb, cc, vinculos):
     erros = [f"{n}: vínculo '{v}' inválido (sem Tipo no cadastro?)"
              for n, v in sorted(vinculos.items()) if v not in VINCULOS]
     if erros:
         sys.exit("❌ " + "\n❌ ".join(erros))
     curtos = nomes_curtos(vinculos)
-    fora = sorted(k for k in amb if k not in meses)
-    if fora:
-        print("⚠️  ambulatório sem escala do CO no mesmo mês, fica de fora: "
-              + ", ".join(f"{m:02d}/{a}" for a, m in fora))
-    saida_meses, saida_amb = [], []
+    for rot, extra in (("ambulatório", amb), ("centro cirúrgico", cc)):
+        fora = sorted(k for k in extra if k not in meses)
+        if fora:
+            print(f"⚠️  {rot} sem escala do CO no mesmo mês, fica de fora: "
+                  + ", ".join(f"{m:02d}/{a}" for a, m in fora))
+    saida_meses, saida_amb, saida_cc = [], [], []
     for (ano, mes), dias in sorted(meses.items()):
         n = calendar.monthrange(ano, mes)[1]
         fora = [d for d in dias if not 1 <= d <= n]
@@ -219,20 +226,21 @@ def montar(meses, amb, vinculos):
             "id": f"{ano}-{mes:02d}", "ano": ano, "mes": mes, "feriados": feriados(ano, mes),
             "dias": {str(d): {s: ordenar(dias.get(d, {}).get(s, [])) for s in "MTN"}
                      for d in range(1, n + 1)}})
-        a_dias = amb.get((ano, mes), {})
-        fora = [d for d in a_dias if not 1 <= d <= n]
-        if fora:
-            sys.exit(f"❌ ambulatório com dias fora do mês {mes:02d}/{ano}: {fora}")
-        saida_amb.append({
-            "id": f"{ano}-{mes:02d}", "ano": ano, "mes": mes, "feriados": feriados(ano, mes),
-            "dias": {str(d): {s: ordenar_amb(a_dias.get(d, {}).get(s, [])) for s in AMB_PERIODOS}
-                     for d in range(1, n + 1)}})
+        for rot, extra, saida in (("ambulatório", amb, saida_amb), ("centro cirúrgico", cc, saida_cc)):
+            a_dias = extra.get((ano, mes), {})
+            fora = [d for d in a_dias if not 1 <= d <= n]
+            if fora:
+                sys.exit(f"❌ {rot} com dias fora do mês {mes:02d}/{ano}: {fora}")
+            saida.append({
+                "id": f"{ano}-{mes:02d}", "ano": ano, "mes": mes, "feriados": feriados(ano, mes),
+                "dias": {str(d): {s: ordenar_amb(a_dias.get(d, {}).get(s, [])) for s in AMB_PERIODOS}
+                         for d in range(1, n + 1)}})
     usados = {nome for m in saida_meses for p in m["dias"].values()
               for l in p.values() for nome in l if nome and nome != RESERVADO}
-    usados |= {nome for m in saida_amb for p in m["dias"].values()
+    usados |= {nome for m in saida_amb + saida_cc for p in m["dias"].values()
                for l in p.values() for _, nome in l if nome and nome not in (RESERVADO, RESIDENTES)}
     return {"pessoas": {n: {"c": curtos[n], "v": vinculos[n]} for n in sorted(usados)},
-            "meses": saida_meses, "amb": {"meses": saida_amb}}
+            "meses": saida_meses, "amb": {"meses": saida_amb}, "cc": {"meses": saida_cc}}
 
 
 def main():
@@ -242,16 +250,16 @@ def main():
     args = ap.parse_args()
 
     if args.local:
-        meses, amb, vinculos = ler_local(args.local)
+        meses, amb, cc, vinculos = ler_local(args.local)
     else:
         token = os.environ.get("NOTION_TOKEN")
         if not token:
             sys.exit("❌ defina NOTION_TOKEN (ou use --local)")
-        meses, amb, vinculos = ler_notion(token)
+        meses, amb, cc, vinculos = ler_notion(token)
     if not meses:
         sys.exit("❌ nenhum plantão do CO encontrado: não vou publicar um site vazio")
 
-    novo = montar(meses, amb, vinculos)
+    novo = montar(meses, amb, cc, vinculos)
     agora = dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds")
     novo["alterado_em"] = agora
     if args.saida.exists():
@@ -263,9 +271,10 @@ def main():
     args.saida.parent.mkdir(parents=True, exist_ok=True)
     args.saida.write_text(json.dumps(novo, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
     pos = sum(len(l) for m in novo["meses"] for p in m["dias"].values() for l in p.values())
-    pos_amb = sum(len(l) for m in novo["amb"]["meses"] for p in m["dias"].values() for l in p.values())
+    pos_amb, pos_cc = (sum(len(l) for m in novo[k]["meses"] for p in m["dias"].values() for l in p.values())
+                       for k in ("amb", "cc"))
     print(f"✅ {args.saida} — {len(novo['meses'])} meses, {pos} posições no CO, "
-          f"{pos_amb} no ambulatório, {len(novo['pessoas'])} plantonistas")
+          f"{pos_amb} no ambulatório, {pos_cc} no centro cirúrgico, {len(novo['pessoas'])} plantonistas")
 
 
 if __name__ == "__main__":
