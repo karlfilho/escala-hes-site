@@ -58,6 +58,11 @@ FERIADOS_FIXOS = {(1, 1): "Confraternização Universal", (4, 21): "Tiradentes",
                   # feriados só do HES (definidos pela coordenação em 14/10/2026)
                   (12, 24): "Véspera de Natal", (12, 31): "Réveillon"}
 
+# Dias a mais do Calendário Administrativo do HES (feriado/expediente suspenso =
+# regime de plantão para os médicos). 2027: PDF assinado em 29/10/2026, jan–abr.
+CALENDARIO_HES = {2027: {(2, 8): "Expediente suspenso", (2, 9): "Carnaval",
+                         (3, 28): "Páscoa"}}
+
 
 def pascoa(ano):
     a, b, c = ano % 19, ano // 100, ano % 100
@@ -72,6 +77,7 @@ def pascoa(ano):
 
 def feriados(ano, mes):
     out = {d: n for (m, d), n in FERIADOS_FIXOS.items() if m == mes}
+    out.update({d: n for (m, d), n in CALENDARIO_HES.get(ano, {}).items() if m == mes})
     sexta_santa = pascoa(ano) - dt.timedelta(days=2)
     if sexta_santa.month == mes:
         out[sexta_santa.day] = "Paixão de Cristo"
